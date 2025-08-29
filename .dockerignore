@@ -1,0 +1,16 @@
+Dockerfile
+.dockerignore
+docker-compose.yml
+README.md
+CLAUDE.md
+Vagrantfile
+.git
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/

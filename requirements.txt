@@ -1,0 +1,9 @@
+google
+mutagen
+protobuf
+pycryptodome
+pycryptodomex
+requests
+urllib3
+xmltodict
+yt-dlp

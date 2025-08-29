@@ -1,0 +1,14 @@
+services:
+  hoopla-dl:
+    build: .
+    container_name: hoopla-dl
+    volumes:
+      - ./config.ini:/app/config.ini:ro
+      - ./output:/app/output
+      - ./tmp:/app/tmp
+      - ./token.json:/app/token.json
+    environment:
+      - PYTHONUNBUFFERED=1
+    stdin_open: true
+    tty: true
+    command: ["python", "hoopla_dl.py"]

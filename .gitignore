@@ -1,0 +1,18 @@
+config.ini
+__pycache__/
+*.py[cod]
+token.json
+.vagrant/
+tmp/
+output/
+venv/
+.venv/
+.DS_Store
+license_content.bin
+
+# Docker
+.docker/
+
+# IDE
+.vscode/
+.idea/
