@@ -10,6 +10,16 @@ venv/
 .DS_Store
 license_content.bin
 
+# Environment variables (contains credentials)
+.env
+
+# Downloaded content files
+*.epub
+*.cbz
+*.m4b
+*.mp4
+*.m4a
+
 # Docker
 .docker/
 

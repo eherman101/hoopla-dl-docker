@@ -3,12 +3,22 @@ services:
     build: .
     container_name: hoopla-dl
     volumes:
-      - ./config.ini:/app/config.ini:ro
+      # Output directories for downloaded content
       - ./output:/app/output
       - ./tmp:/app/tmp
+      - ./tmp:/home/ezrapi/temp
+      # Optional: Authentication token cache (created automatically)
       - ./token.json:/app/token.json
     environment:
       - PYTHONUNBUFFERED=1
+      # Load credentials from .env file
+      - HOOPLA_USERNAME=${HOOPLA_USERNAME}
+      - HOOPLA_PASSWORD=${HOOPLA_PASSWORD}
+      # Optional environment variables
+      - OUTPUT_DIR=${OUTPUT_DIR:-/app/output}
+      - KEEP_DECRYPTED_DATA=${KEEP_DECRYPTED_DATA:-false}
+      - KEEP_ENCRYPTED_DATA=${KEEP_ENCRYPTED_DATA:-false}
     stdin_open: true
     tty: true
-    command: ["python", "hoopla_dl.py"]
+    # Show help by default
+    command: ["python3", "hoopla_main.py", "--help"]

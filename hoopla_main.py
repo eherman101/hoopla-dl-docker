@@ -426,8 +426,8 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Download and decrypt Hoopla content.")
-    parser.add_argument('--username', type=str, required=True, help='Hoopla username.')
-    parser.add_argument('--password', type=str, required=True, help='Hoopla password.')
+    parser.add_argument('--username', type=str, help='Hoopla username (or set HOOPLA_USERNAME env var).')
+    parser.add_argument('--password', type=str, help='Hoopla password (or set HOOPLA_PASSWORD env var).')
     parser.add_argument('--title-id', type=int, nargs='*', help='Specific title IDs to download.')
     parser.add_argument('--all-borrowed', action='store_true', help='Download all borrowed titles.')
     parser.add_argument('--output-folder', type=str, default=os.getcwd(), help='Output folder for downloaded files.')
@@ -445,9 +445,20 @@ def main():
         print("Output folder doesn't exist. Creating.")
         os.makedirs(output_folder)
 
+    # Get credentials from args or environment variables
+    username = args.username or os.getenv('HOOPLA_USERNAME')
+    password = args.password or os.getenv('HOOPLA_PASSWORD')
+    
+    if not username:
+        print("Error: Username required. Use --username or set HOOPLA_USERNAME environment variable.")
+        return
+    if not password:
+        print("Error: Password required. Use --password or set HOOPLA_PASSWORD environment variable.")
+        return
+
     # --- Main Execution Flow ---
     try:
-        token = connect_hoopla(args.username, args.password)
+        token = connect_hoopla(username, password)
         print(f"Logged in. Received token: {token}")
 
         users = get_hoopla_users(token)

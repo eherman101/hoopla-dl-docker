@@ -9,37 +9,49 @@ This project containerizes the hoopla_dl.py script for downloading audiobooks fr
 - Hoopla Digital library account with borrowed audiobooks
 
 ### Configuration
-1. Copy the example configuration:
+1. Copy the example environment file:
    ```bash
-   cp config.ini.example config.ini
+   cp .env.example .env
    ```
 
-2. Edit `config.ini` with your Hoopla credentials:
-   ```ini
-   [Credentials]
-   username = your_username
-   password = your_password
+2. Edit `.env` with your Hoopla credentials:
+   ```bash
+   HOOPLA_USERNAME=your_username
+   HOOPLA_PASSWORD=your_password
    ```
 
 ### Usage
 
-**List borrowed audiobooks:**
+The unified `hoopla_main.py` script supports downloading all content types: **ebooks (EPUB)**, **comics (CBZ)**, and **audiobooks (M4B)**.
+
+**Download specific content by ID:**
 ```bash
-docker compose run --rm hoopla-dl python3 hoopla_dl.py list
+docker compose run --rm hoopla-dl python3 hoopla_main.py --title-id [ID]
 ```
 
-**Download an audiobook:**
+**Download multiple items:**
 ```bash
-docker compose run --rm hoopla-dl python3 hoopla_dl.py download [ID]
+docker compose run --rm hoopla-dl python3 hoopla_main.py --title-id 12360547 12411610 18630080
 ```
 
-**Examples:**
+**Download all borrowed content:**
 ```bash
-# List all borrowed books
-docker compose run --rm hoopla-dl python3 hoopla_dl.py list
+docker compose run --rm hoopla-dl python3 hoopla_main.py --all-borrowed
+```
 
-# Download a specific book by ID
-docker compose run --rm hoopla-dl python3 hoopla_dl.py download 12411610
+**Examples by content type:**
+```bash
+# Download an ebook (EPUB)
+docker compose run --rm hoopla-dl python3 hoopla_main.py --title-id 12360547
+
+# Download a comic book (CBZ)
+docker compose run --rm hoopla-dl python3 hoopla_main.py --title-id 18630080
+
+# Download an audiobook (M4B)
+docker compose run --rm hoopla-dl python3 hoopla_main.py --title-id 12411610
+
+# Keep temporary files for debugging
+docker compose run --rm hoopla-dl python3 hoopla_main.py --title-id 12360547 --keep-decrypted-data
 ```
 
 ## Architecture
@@ -47,16 +59,25 @@ docker compose run --rm hoopla-dl python3 hoopla_dl.py download 12411610
 ### Docker Components
 - **Base Image**: Debian bookworm-slim (ARM64 compatible)
 - **Python Environment**: Python 3.11 with required packages
+- **Main Script**: `hoopla_main.py` - Unified downloader for all content types
 - **Dependencies**: 
-  - ffmpeg for audio processing
-  - bento4 (v1.6.0.640) for DRM decryption with mp4decrypt
-  - All Python packages from requirements.txt
+  - **yt-dlp** for audiobook streaming downloads
+  - **ffmpeg** for audio/video processing
+  - **bento4** (v1.6.0.640) for Widevine DRM decryption (mp4decrypt)
+  - **Python packages** from requirements.txt (cryptography, requests, mutagen, etc.)
 
 ### Volume Mounts
-- `./config.ini:/app/config.ini:ro` - Configuration file (read-only)
-- `./output:/app/output` - Downloaded audiobooks output directory
-- `./tmp:/app/tmp` - Temporary files during processing
-- `./token.json:/app/token.json` - Authentication token cache
+- `./output:/app/output` - Downloaded content output directory (ebooks, comics, audiobooks)
+- `./tmp:/app/tmp` - Temporary files during processing 
+- `./tmp:/home/ezrapi/temp` - Additional temp directory for decryption
+- `./token.json:/app/token.json` - Authentication token cache (optional)
+
+### Environment Variables
+- `HOOPLA_USERNAME` - Your Hoopla Digital username (from .env file)
+- `HOOPLA_PASSWORD` - Your Hoopla Digital password (from .env file)
+- `OUTPUT_DIR` - Custom output directory (optional)
+- `KEEP_DECRYPTED_DATA` - Keep decrypted temporary files (optional)
+- `KEEP_ENCRYPTED_DATA` - Keep encrypted temporary files (optional)
 
 ### Bento4 Installation
 The container uses the older bento4 version (1.6.0.640) from deb-multimedia.org that's compatible with Debian bookworm's libc6 version. This provides the essential mp4decrypt binary for Widevine DRM decryption.
@@ -77,16 +98,24 @@ hoopla-dl-docker/
 
 ## Technical Notes
 
+### Content Type Support
+- **📖 EPUB (Ebooks)**: ZIP download → decryption → XML parsing → EPUB generation with metadata
+- **🖼️ CBZ (Comics)**: ZIP download → decryption → image compilation → CBZ archive
+- **🎧 M4B (Audiobooks)**: Widevine DRM streaming → yt-dlp download → mp4decrypt → ffmpeg conversion
+
 ### DRM Decryption
-This application uses Widevine L3 decryption to download protected content from Hoopla. The included Widevine CDM (Content Decryption Module) may need periodic updates if blocked by the service.
+- **Ebooks & Comics**: AES-CBC decryption using patron-specific keys
+- **Audiobooks**: Widevine L3 decryption with streaming manifests (MPD files)
+- The included Widevine CDM (Content Decryption Module) may need periodic updates if blocked by the service
 
 ### ARM64 Compatibility
 The Docker setup is specifically configured for ARM64 architecture (Apple Silicon, Raspberry Pi 4/5) with proper dependency resolution for the target platform.
 
 ### Limitations
-- Passwords with special symbols may not work (change password if needed)
+- Passwords with special symbols may not work (change password if needed)  
 - Download quality varies by Hoopla's source material
 - Some audiobooks may lack proper chapter information
+- Content must be actively borrowed from your library account
 
 ## Troubleshooting
 
@@ -105,3 +134,4 @@ The Docker setup is specifically configured for ARM64 architecture (Apple Silico
 
 ## Legal Notice
 This tool is for educational and research purposes only. Users must have valid Hoopla library accounts and should only download content they have legitimately borrowed. Respect copyright laws and terms of service.
+- the ebook and comic book logic and API are based on hoopla_dl.ps1 (known working); the audiobook downloading is based on hoopla_audiobooks.py (known working).

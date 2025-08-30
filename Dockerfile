@@ -1,12 +1,14 @@
-# Main application container
+# Hoopla-DL Docker Container
+# Unified solution for downloading ebooks, comics, and audiobooks from Hoopla Digital
 FROM debian:bookworm-slim
 
-# Install Python and system dependencies including required libraries
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     python3-venv \
     ffmpeg \
+    yt-dlp \
     wget \
     curl \
     gnupg2 \
@@ -16,8 +18,7 @@ RUN apt-get update && apt-get install -y \
     libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
 
-
-# Install older bento4 version compatible with bookworm
+# Install bento4 for mp4decrypt (required for audiobook DRM decryption)
 RUN wget -O /tmp/bento4.deb http://ftp.deb-multimedia.org/pool/main/b/bento4-dmo/bento4_1.6.0.640-dmo1_arm64.deb && \
     dpkg -i /tmp/bento4.deb || (apt-get update && apt-get install -fy) && \
     rm -f /tmp/bento4.deb && \
@@ -31,16 +32,16 @@ COPY requirements.txt .
 RUN python3 -m pip install --break-system-packages --no-cache-dir -r requirements.txt
 
 # Copy application files
-COPY . .
+COPY hoopla_main.py .
+COPY widevine_keys/ ./widevine_keys/
 
-# Create necessary directories
-RUN mkdir -p output tmp
-
-# Make the script executable
-RUN chmod +x hoopla_dl.py
+# Create necessary directories with proper permissions
+RUN mkdir -p /app/output /app/tmp /home/ezrapi/temp && \
+    chmod 755 /app/output /app/tmp /home/ezrapi/temp
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
+ENV TEMP_FOLDER=/home/ezrapi/temp
 
-# Default command
-CMD ["python3", "hoopla_dl.py", "--help"]
+# Default command shows help
+CMD ["python3", "hoopla_main.py", "--help"]
