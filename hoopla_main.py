@@ -4,12 +4,17 @@ import zipfile
 import shutil
 import base64
 import hashlib
+import subprocess
 from datetime import datetime, timezone
 import requests
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import padding
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse
+import mutagen.mp4
+from mutagen.mp4 import MP4
+from widevine_keys.getPSSH import get_pssh
+from widevine_keys.l3 import WV_Function
 
 # --- Constants and Configuration ---
 HEADERS = {
@@ -345,6 +350,74 @@ def convert_hoopla_decrypted_to_cbz(input_folder, out_folder, name):
             
     return final_out_file
 
+# --- Audiobook Processing Functions ---
+def get_x_dt_auth_token_for_audiobook(book_media_key, circ_id, token, patron_id):
+    """Get X-DT-Auth-Token for audiobook Widevine DRM."""
+    headers = HEADERS.copy()
+    headers['Authorization'] = f'Bearer {token}'
+    url = f"https://patron-api-gateway.hoopladigital.com/license/castlabs/upfront-auth-tokens/{book_media_key}/{patron_id}/{circ_id}"
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    return response.content.decode("utf-8")
+
+def widevine_audiobook(mpd_url, x_dt_auth_token):
+    """Get Widevine keys for audiobook."""
+    lic_url = "https://lic.drmtoday.com/license-proxy-widevine/cenc/?specConform=true"
+    pssh = get_pssh(mpd_url)
+    params = urlparse(lic_url).query
+    correct, keys = WV_Function(pssh, lic_url, x_dt_auth_token, params=params)
+    for key in keys:
+        return key
+
+def download_audiobook_mpd(book_media_key, key):
+    """Download and decrypt audiobook using yt-dlp and mp4decrypt."""
+    temp_dir = "tmp/"
+    
+    # Ensure temp directory exists
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+    
+    mpd_url = f"https://dash.hoopladigital.com/{book_media_key}/Manifest.mpd"
+    enc_filename = os.path.join(temp_dir, f"{book_media_key}.enc.m4a")
+    dec_filename = os.path.join(temp_dir, f"{book_media_key}.dec.m4a") 
+    fixed_filename = os.path.join(temp_dir, f"{book_media_key}.notag.m4b")
+
+    dl_command = ["yt-dlp", "--allow-unplayable-formats", "-o", enc_filename, mpd_url]
+    decrypt_command = ["mp4decrypt", "--key", key, enc_filename, dec_filename]
+    fix_command = ["ffmpeg", "-i", dec_filename, "-c:a", "copy", fixed_filename]
+
+    try:
+        subprocess.run(dl_command, check=True)
+        subprocess.run(decrypt_command, check=True) 
+        subprocess.run(fix_command, check=True)
+    except Exception as e:
+        print(f"An error occurred during audiobook download/decryption: {str(e)}")
+        raise
+    finally:
+        if os.path.exists(enc_filename):
+            os.remove(enc_filename)
+        if os.path.exists(dec_filename):
+            os.remove(dec_filename)
+
+def process_audiobook(info, token, patron_id_param):
+    """Process audiobook using Widevine DRM workflow."""
+    # This uses the same logic as hoopla_audiobooks.py
+    contents = info['contents'][0]
+    circ_id = contents.get('circId')
+    media_key = contents.get('mediaKey')
+    
+    print(f"Starting audiobook download for: {info['title']}")
+    print(f"Media Key: {media_key}, Circ ID: {circ_id}")
+    
+    # Get auth token and keys
+    x_dt_auth_token = get_x_dt_auth_token_for_audiobook(media_key, circ_id, token, patron_id_param)
+    mpd_url = f"https://dash.hoopladigital.com/{media_key}/Manifest.mpd"
+    decrypt_key = widevine_audiobook(mpd_url, x_dt_auth_token)
+    
+    # Download and decrypt
+    download_audiobook_mpd(media_key, decrypt_key)
+    print(f"Audiobook '{info['title']}' processing completed.")
+
 def main():
     """Main script logic."""
     # --- Parameter Parsing and Setup (Simplified) ---
@@ -432,7 +505,14 @@ def main():
             content_kind = info.get('kind', {}).get('id')
             if contents.get('mediaType'):
                 content_kind = contents.get('mediaType')
+            
+            # Audiobooks use a completely different approach - Widevine DRM streaming
+            if content_kind == HooplaKind.AUDIOBOOK:
+                print(f"Processing audiobook: {info['title']}")
+                process_audiobook(info, token, patron_id)
+                continue
                 
+            # For ebooks and comics, use the ZIP download approach
             enc_dir = os.path.join(temp_folder, f'enc-{circ_id}-{now}')
             dec_dir = os.path.join(temp_folder, f'dec-{circ_id}-{now}')
             
