@@ -1,3 +1,4 @@
+# Main application container
 FROM debian:bookworm-slim
 
 # Install Python and system dependencies including required libraries
@@ -14,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     libgcc-s1 \
     libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
+
 
 # Install older bento4 version compatible with bookworm
 RUN wget -O /tmp/bento4.deb http://ftp.deb-multimedia.org/pool/main/b/bento4-dmo/bento4_1.6.0.640-dmo1_arm64.deb && \
